@@ -6,8 +6,6 @@ RST=$'\e[0m'
 BOLD=$'\e[1m'
 DIM=$'\e[2m'
 ITALIC=$'\e[3m'
-UNDER=$'\e[4m'
-BLINK=$'\e[5m'
 
 # Foreground
 FG_BLACK=$'\e[30m'
@@ -45,7 +43,6 @@ BORDER_DIM="${DIM}${FG_CYAN}"
 # Box-drawing characters
 BX_TL="╭" BX_TR="╮" BX_BL="╰" BX_BR="╯"
 BX_H="─" BX_V="│" BX_LT="├" BX_RT="┤"
-BX_CROSS="┼" BX_TB="┬" BX_BT="┴"
 
 # ─── Terminal Helpers ─────────────────────────────────────────────────────────
 term_width()  { tput cols  2>/dev/null || echo 80; }
@@ -65,7 +62,8 @@ cleanup() {
   printf '%s' "$RST"
 }
 trap cleanup EXIT
-trap 'exit 130' INT TERM
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 # ─── Animation Helpers ────────────────────────────────────────────────────────
 typewrite() {
@@ -90,11 +88,10 @@ fade_in_line() {
 spinner_brief() {
   local msg="$1" duration="${2:-0.5}"
   local frames=("⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏")
-  local end_time
-  end_time=$(awk "BEGIN{printf \"%f\", $(date +%s.%N) + $duration}")
-  local i=0
+  local end_time i=0
+  end_time=$(awk -v now="$(date +%s)" -v dur="$duration" 'BEGIN{printf "%d", now + int(dur + 1)}')
   hide_cursor
-  while awk "BEGIN{exit !($(date +%s.%N) < $end_time)}" 2>/dev/null; do
+  while (( $(date +%s) < end_time )); do
     printf '\r  %s%s%s %s' "$ACCENT" "${frames[$i]}" "$RST" "$msg"
     i=$(( (i + 1) % ${#frames[@]} ))
     sleep 0.08
@@ -165,7 +162,6 @@ draw_hline() {
 
 center_text() {
   local row="$1" width="$2" text="$3" color="${4:-$RST}"
-  local tlen=${#text}
   # Strip ANSI for length calculation
   local plain
   plain=$(printf '%s' "$text" | sed 's/\x1b\[[0-9;]*m//g')
@@ -264,7 +260,6 @@ interactive_select() {
   local -n items_ref=$1
   local title="$2"
   local start_row="$3"
-  local allow_multi="${4:-false}"
   local count=${#items_ref[@]}
 
   if (( count == 0 )); then SEL_IDX=-1; return; fi
@@ -489,9 +484,9 @@ draw_session_detail() {
   local box_col=$(( (w - box_w) / 2 ))
 
   local info
-  info=$(tmux ls -t "$name" -F "Windows: #{session_windows}  |  Attached: #{?session_attached,yes,no}  |  Created: #{t:session_created}" 2>/dev/null || echo "No details available")
+  info=$(tmux ls -t "=$name" -F "Windows: #{session_windows}  |  Attached: #{?session_attached,yes,no}  |  Created: #{t:session_created}" 2>/dev/null || echo "No details available")
   local windows
-  windows=$(tmux list-windows -t "$name" -F "  #{window_index}: #{window_name} #{?window_active,← active,}" 2>/dev/null || true)
+  windows=$(tmux list-windows -t "=$name" -F "  #{window_index}: #{window_name} #{?window_active,← active,}" 2>/dev/null || true)
 
   local wcount=0
   if [[ -n "$windows" ]]; then
@@ -652,7 +647,10 @@ screen_attach() {
     printf '\e[2J\e[H'
     printf '%s  Attaching to %s...%s\n' "$ACCENT" "$name" "$RST"
     sleep 0.3
-    tmux attach-session -t "$name"
+    if ! tmux attach-session -t "=$name"; then
+      printf '%s  Failed to attach (session may have ended)%s\n' "$DANGER" "$RST"
+      sleep 1
+    fi
     tput smcup 2>/dev/null || true
     hide_cursor
   fi
@@ -667,8 +665,14 @@ screen_new() {
 
   interactive_input "Enter session name" 5
   if [[ -n "$INPUT_VALUE" ]]; then
+    # Validate session name: no colons, periods, or control characters
+    if [[ "$INPUT_VALUE" =~ [.:] || "$INPUT_VALUE" != "${INPUT_VALUE//[[:cntrl:]]/}" ]]; then
+      toast "Invalid name (cannot contain . : or control chars)" "$DANGER"
+      sleep 0.5
+      return
+    fi
     # Check if session already exists
-    if tmux has-session -t "$INPUT_VALUE" 2>/dev/null; then
+    if tmux has-session -t "=$INPUT_VALUE" 2>/dev/null; then
       toast "Session '$INPUT_VALUE' already exists!" "$DANGER"
       sleep 0.5
       return
@@ -677,7 +681,12 @@ screen_new() {
     tput rmcup 2>/dev/null || true
     printf '\e[2J\e[H'
     spinner_brief "Creating session '$INPUT_VALUE'..." 0.4
-    tmux new-session -s "$INPUT_VALUE"
+    if ! tmux new-session -s "$INPUT_VALUE"; then
+      tput smcup 2>/dev/null || true
+      hide_cursor
+      toast "Failed to create session" "$DANGER"
+      return
+    fi
     tput smcup 2>/dev/null || true
     hide_cursor
   fi
@@ -709,7 +718,7 @@ screen_kill() {
     local confirm_row=$(( detail_row + 10 ))
     interactive_confirm "Kill session '$name'?" "$confirm_row"
     if $CONFIRM_RESULT; then
-      tmux kill-session -t "$name" 2>/dev/null
+      tmux kill-session -t "=$name" 2>/dev/null || true
       toast "Session '$name' terminated" "$SUCCESS"
     else
       toast "Cancelled" "$MUTED"
