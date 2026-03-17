@@ -1,27 +1,36 @@
-# tmux session manager
+# tmux
 
-A simple bash script for managing tmux sessions without needing to remember all the commands.
+A terminal UI for managing tmux sessions — with animations, arrow-key navigation, and a full color theme.
 
-## what it does
+![bash](https://img.shields.io/badge/bash-5.0%2B-blue) ![tmux](https://img.shields.io/badge/tmux-required-orange) ![platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey)
 
-This script gives you a menu to:
-- List all active tmux sessions
-- Attach to an existing session
-- Kill a specific session
-- Create a new session
-- Kill all sessions at once
+---
 
-Basically just wraps the common tmux commands in a menu so you don't have to type them out every time.
+## features
+
+- Animated intro with ASCII logo and progress bar
+- Arrow-key (or `j`/`k`) driven menu — no typing numbers
+- Session sidebar showing attached state and age at a glance
+- Detail panel before killing a session so you know what you're destroying
+- Confirmation dialog for destructive actions, defaulting to **No**
+- Toast notifications for success/error feedback
+- Runs in an alternate screen buffer — your terminal history is left untouched
+
+## requirements
+
+- `bash` 5.0+
+- `tmux`
+- A terminal emulator that supports 256 colors and UTF-8 (basically anything modern)
 
 ## installation
 
-Clone or download the script somewhere, then make it executable:
-
 ```bash
+git clone https://github.com/yourname/tmux-manager.git
+cd tmux-manager
 chmod +x tmux-manager.sh
 ```
 
-If you want to run it from anywhere, move it to your PATH:
+To run it from anywhere:
 
 ```bash
 sudo mv tmux-manager.sh /usr/local/bin/tmux-manager
@@ -29,29 +38,39 @@ sudo mv tmux-manager.sh /usr/local/bin/tmux-manager
 
 ## usage
 
-Just run it:
-
 ```bash
 ./tmux-manager.sh
-```
-
-Or if you moved it to your PATH:
-
-```bash
+# or, if installed to PATH:
 tmux-manager
 ```
 
-You'll see a menu with options. Pick a number and press enter. Most options will bring you back to the main menu when you're done.
+You'll land on the main menu after a short intro animation.
 
-## requirements
+### navigation
 
-- bash
-- tmux (obviously)
+| Key | Action |
+|---|---|
+| `↑` / `↓` or `j` / `k` | Move through menu items |
+| `Enter` | Select |
+| `1`–`4` | Jump directly to a menu item |
+| `q` / `Q` | Quit |
+| `Esc` | Go back from a sub-screen |
 
-That's it. Should work on Linux and macOS.
+### menu options
+
+**Attach Session** — lists all active sessions with their window count and age. Select one to attach.
+
+**New Session** — prompts for a name and drops you straight into a new tmux session. Warns you if the name is already taken.
+
+**Kill Session** — select a session, review its window list in a detail panel, then confirm before it's terminated.
+
+**Kill All Sessions** — shows every session that will be destroyed and requires explicit confirmation before running `tmux kill-server`.
+
+**Quit** — exits back to your shell cleanly.
 
 ## notes
 
-The script uses `set -euo pipefail` at the top, so it'll exit if anything goes wrong. If you're getting errors, make sure tmux is installed and running properly.
-
-If you want to customize the prompts or messages, they're pretty straightforward to edit in the script itself.
+- The script uses `set -euo pipefail`, so unexpected errors exit early rather than silently continuing.
+- On exit (including `Ctrl-C`), the alternate screen buffer and cursor are always restored — you won't be left with a broken terminal.
+- The session sidebar only appears when your terminal is wider than 90 columns.
+- If `tput` isn't available, the script falls back to 80×24 dimensions gracefully.
