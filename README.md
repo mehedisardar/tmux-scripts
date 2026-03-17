@@ -4,7 +4,7 @@ A terminal UI for managing tmux sessions — with animations, arrow-key navigati
 
 ![bash](https://img.shields.io/badge/bash-5.0%2B-blue) ![tmux](https://img.shields.io/badge/tmux-required-orange) ![platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-lightgrey)
 
----
+<img width="820" height="493" alt="image" src="https://github.com/user-attachments/assets/f33351ca-1549-45d9-8094-ca94ecf08915" />
 
 ## features
 
